@@ -21,9 +21,11 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #
+# version 0.2
 from gramps.gen.plug._pluginreg import register, STABLE, UNSTABLE, GRAMPLET
 from gramps.gen.const import GRAMPS_LOCALE as glocale
 _ = glocale.translation.gettext
+
 
 MODULE_VERSION="5.1"
 
@@ -51,7 +53,7 @@ register(GRAMPLET,
          version="1.0.0",
          gramps_target_version=MODULE_VERSION,
          status = STABLE,
-         fname="eventrolebacklinks.py",
+         fname="EventRoleBacklinks.py",
          height=200,
          gramplet = 'EventRoleBacklinks',
          gramplet_title=_("RoleReferences"),
