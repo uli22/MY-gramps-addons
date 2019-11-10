@@ -77,12 +77,14 @@ class Backlinks(Gramplet):
         """
         for classname, handle in \
                 self.dbstate.db.find_backlink_handles(active_handle):
-            name = navigation_label(self.dbstate.db, classname, handle)[0]
-            plevent = self.dbstate.db.get_event_from_handle(handle)
-            #pldate = self.get_date(plevent, active_handle) 
-            pldate = get_date(plevent) 
-            pldate_sort = '%012d' % plevent.get_date_object().get_sort_value()
-            self.model.add((_(classname), name, handle, classname, pldate, pldate_sort))
+            if classname == 'Event':
+                name = navigation_label(self.dbstate.db, classname, handle)[0]
+                print(classname, name)
+                plevent = self.dbstate.db.get_event_from_handle(handle)
+                #pldate = self.get_date(plevent, active_handle) 
+                pldate = get_date(plevent) 
+                pldate_sort = '%012d' % plevent.get_date_object().get_sort_value()
+                self.model.add((_(classname), name, handle, classname, pldate, pldate_sort))
         self.set_has_data(self.model.count > 0)
 
     def get_has_data(self, active_handle):
