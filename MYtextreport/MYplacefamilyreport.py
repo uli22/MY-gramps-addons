@@ -142,37 +142,30 @@ class PlaceFamilyReport(Report):
         This procedure writes out each of the selected places.
         """
         place_nbr = 1
+        subtitle = self._("Places")
+        mark = IndexMark(subtitle, INDEX_TYPE_TOC, 2)        
+        self.doc.start_paragraph("PLC-ReportSubtitle")
+        self.doc.write_text(subtitle, mark)
+        self.doc.end_paragraph()
 
-        with self._user.progress(_("PlaceFamily Report"), 
-                                 _("Generating report Places"), 
-                                 len(self.place_handles)) as step:
-
-            subtitle = self._("Places")
-            mark = IndexMark(subtitle, INDEX_TYPE_TOC, 2)        
-            self.doc.start_paragraph("PLC-ReportSubtitle")
-            self.doc.write_text(subtitle, mark)
-            self.doc.end_paragraph()
-    
+        self.doc.start_paragraph("PLC-Section")
+        self.doc.write_text("Enthält alle Familien mit Hochzeitsereignis in diesen Orten")
+        self.doc.end_paragraph()
+        
+        pl_list = []
+        pl_list = [_pd.display(self.db, self.db.get_place_from_handle(handle)) for handle in self.place_handles]
+        for p in pl_list:
             self.doc.start_paragraph("PLC-Section")
-            self.doc.write_text("Enthält alle Familien mit Hochzeitsereignis in diesen Orten")
+            self.doc.write_text("     %s  " % place_nbr)
+            self.doc.write_text(p)
             self.doc.end_paragraph()
-            
-            pl_list = []
-            pl_list = [_pd.display(self.db, self.db.get_place_from_handle(handle)) for handle in self.place_handles]
-            for p in pl_list:
-                self.doc.start_paragraph("PLC-Section")
-                self.doc.write_text("     %s  " % place_nbr)
-                self.doc.write_text(p)
-                self.doc.end_paragraph()
-                place_nbr += 1
-        # increment progress bar
-                step()
+            place_nbr += 1
 
-            subtitle = self._("Families")
-            mark = IndexMark(subtitle, INDEX_TYPE_TOC, 2)        
-            self.doc.start_paragraph("PLC-ReportSubtitle")
-            self.doc.write_text(subtitle, mark)
-            self.doc.end_paragraph()
+        subtitle = self._("Families")
+        mark = IndexMark(subtitle, INDEX_TYPE_TOC, 2)        
+        self.doc.start_paragraph("PLC-ReportSubtitle")
+        self.doc.write_text(subtitle, mark)
+        self.doc.end_paragraph()
 
 
     def __format_date_place(self, eventref):
@@ -219,6 +212,7 @@ class PlaceFamilyReport(Report):
         with self._user.progress(_("PlaceFamily Report"), 
                                   _("preparing Dictionaries"), 
                                   len(self.place_handles)) as step:
+        
             if self.showgodparents:
                 pedic = {}
                 pedic = defaultdict(list)
@@ -244,146 +238,191 @@ class PlaceFamilyReport(Report):
             marr = list(OrderedDict.fromkeys(marrevt_handle_list))
     #        print(len(marr))
             mi = 0   
-            with self._user.progress(_("PlaceFamily Report"), 
-                                     _("Generating report Places"), 
-                                     len(self.place_handles)) as step:       
-                for evt_handle in marr:
-                    event = self.db.get_event_from_handle(evt_handle)
-                    date = self._get_date(event.get_date_object())
-                    date_sort = event.get_date_object().get_sort_value()
-                    descr = event.get_description()
-                    ref_handles = [x for x in
-                                   self.db.find_backlink_handles(evt_handle)]
-        #            print(mi, evt_handle)
-                    mi += 1
-                    for (ref_type, ref_handle) in ref_handles:
-                        if ref_type == 'Person':
-                            continue
+
+            for evt_handle in marr:
+                event = self.db.get_event_from_handle(evt_handle)
+                date = self._get_date(event.get_date_object())
+                date_sort = event.get_date_object().get_sort_value()
+                descr = event.get_description()
+                ref_handles = [x for x in
+                                self.db.find_backlink_handles(evt_handle)]
+    #            print(mi, evt_handle)
+                mi += 1
+                for (ref_type, ref_handle) in ref_handles:
+                    if ref_type == 'Person':
+                        continue
+                    else:
+                        family = self.db.get_family_from_handle(ref_handle)
+                        ifam += 1
+                        father_handle = family.get_father_handle()
+        # now from the families only fathers
+                        if father_handle:
+                            fp = self.db.get_person_from_handle(father_handle)
+                            father_name = \
+                                self._nd.display_name(fp.get_primary_name()).lower()
                         else:
-                            family = self.db.get_family_from_handle(ref_handle)
-                            ifam += 1
-                            father_handle = family.get_father_handle()
-            # now from the families only fathers
-                            if father_handle:
-                                fp = self.db.get_person_from_handle(father_handle)
-                                father_name = \
-                                    self._nd.display_name(fp.get_primary_name()).lower()
-                            else:
-                                father_name = _("unknown")
-                            place_d = _pd.display_event(self.db, event)                                        
-                            event_details = [father_handle, father_name, date, ref_handle, descr, place_d, family, date_sort]
-                            fam_list.append(event_details)
+                            father_name = _("unknown")
+                        place_d = _pd.display_event(self.db, event)                                        
+                        event_details = [father_handle, father_name, date, ref_handle, descr, place_d, family, date_sort]
+                        fam_list.append(event_details)
 
-                fam_index_keys = fam_index.keys()
-                printsurname = "NOW"
-                index = 0
-                for fn in sorted(fam_list, key=lambda t: (locale.strxfrm(t[1]), t[7])):
-                    index += 1
-                    fam_index[fn[6].get_gramps_id()] = index
-                for fn in sorted(fam_list, key=lambda t: (locale.strxfrm(t[1]), t[7])):
-                    if fn[0] is None:
-                        surname = _("unknown")
-                    else:
-                        surname = self.db.get_person_from_handle(fn[0]).get_primary_name().get_surname()
-                    if printsurname == surname:
-                        pass
-                    else:
-            #Family Surname
-                        printsurname = surname
-                        self.doc.start_paragraph("PLC-PlaceTitle")
-                        mark = IndexMark( surname, INDEX_TYPE_ALP )
-                        
-                        self.doc.write_text(surname, mark)
-                        self.doc.end_paragraph()                              
-                    i += 1
-                # increment progress bar
-                    step()
-        # weddingdetails
-                    family = fn[6]
-                    iw += 1
-                    self.doc.start_paragraph("PLC-Details")
+            fam_index_keys = fam_index.keys()
+            printsurname = "NOW"
+            index = 0
+            for fn in sorted(fam_list, key=lambda t: (locale.strxfrm(t[1]), t[7])):
+                index += 1
+                fam_index[fn[6].get_gramps_id()] = index
+            for fn in sorted(fam_list, key=lambda t: (locale.strxfrm(t[1]), t[7])):
+                if fn[0] is None:
+                    surname = _("unknown")
+                else:
+                    surname = self.db.get_person_from_handle(fn[0]).get_primary_name().get_surname()
+                if printsurname == surname:
+                    pass
+                else:
+        #Family Surname
+                    printsurname = surname
+                    self.doc.start_paragraph("PLC-PlaceTitle")
+                    mark = IndexMark( surname, INDEX_TYPE_ALP )
+                    
+                    self.doc.write_text(surname, mark)
+                    self.doc.end_paragraph()                              
+                i += 1
+    # weddingdetails
+                family = fn[6]
+                iw += 1
+                self.doc.start_paragraph("PLC-Details")
+                self.doc.start_bold()
+    #            self.doc.write_text("<%s> " % iw)
+                self.doc.write_text(" <%s>" % fam_index[fn[6].gramps_id])
+    #            self.doc.write_text("Heirat %s " % fn[1])
+                self.doc.write_text("%s " % u'\u26AD')
+                self.doc.write_text("%s " % fn[2])
+                self.doc.end_bold()
+    # wedding place
+                self.doc.write_text("in %s." % fn[5])
+    # FamID            
+                self.doc.write_text(" [%s]" % fn[6].gramps_id)        
+                self.doc.end_paragraph()
+
+    
+    ##################################################
+    # fatherdetails
+                if fn[6].father_handle:
+                    father = self.db.get_person_from_handle(fn[6].father_handle)
+                    self.doc.start_paragraph("PLC-PlaceDetails")
+    #given Name
                     self.doc.start_bold()
-        #            self.doc.write_text("<%s> " % iw)
-                    self.doc.write_text(" <%s>" % fam_index[fn[6].gramps_id])
-        #            self.doc.write_text("Heirat %s " % fn[1])
-                    self.doc.write_text("%s " % u'\u26AD')
-                    self.doc.write_text("%s " % fn[2])
+                    mark = ReportUtils.get_person_mark(self.db, father)
+                    text = father.get_primary_name().get_first_name()
+                    self.doc.write_text(text, mark)
+                    self.doc.write_text(" %s" % father.get_primary_name().get_surname())
+                    
                     self.doc.end_bold()
-        # wedding place
-                    self.doc.write_text("in %s." % fn[5])
-        # FamID            
-                    self.doc.write_text(" [%s]" % fn[6].gramps_id)        
+                    self.doc.write_text(" [%s] " % father.get_gramps_id())
+    #ggf familyID
+                    for fam in father.get_family_handle_list():
+                        if self.db.get_family_from_handle(fam).gramps_id == fn[6].gramps_id:
+                            pass
+                        else:
+                            self.doc.write_text(" [%s]" % self.db.get_family_from_handle(fam).gramps_id)
+                            if self.db.get_family_from_handle(fam).gramps_id in fam_index_keys:
+                                self.doc.start_bold()
+                                self.doc.write_text(" <%s>" % fam_index[self.db.get_family_from_handle(fam).gramps_id])
+                                self.doc.end_bold()
+                    self.__add_grampsID_to_index(person_index, father)
+        #birth date
+                    birth_ref = father.get_birth_ref()
+                    if birth_ref:
+                        self.doc.write_text(" *")
+                        self.doc.write_text(self.__format_date_place(birth_ref))
+        #bapt date
+                    for eventref in father.event_ref_list:
+                        if eventref.role == EventRoleType.PRIMARY:
+                            if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BAPTISM:
+                                self.doc.write_text(" %s " % u'\u2053')
+                                self.doc.write_text(self.__format_date_place(eventref))
+        #death date
+                    death_ref = father.get_death_ref()
+                    if death_ref:
+                        self.doc.write_text(" † ")
+                        self.doc.write_text(self.__format_date_place(death_ref))
+        #burr date
+                    for eventref in father.event_ref_list:
+                        if eventref.role == EventRoleType.PRIMARY:
+                            if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BURIAL:
+                                self.doc.write_text("%s " % u'\u26B0')
+                                self.doc.write_text(self.__format_date_place(eventref))
                     self.doc.end_paragraph()
+    # motherdetails
+#                print(fn[6].gramps_id,fn[6])
+                print('            handle', fn[6].mother_handle)
 
-       
-        ##################################################
-        # fatherdetails
-                    if fn[6].father_handle:
-                        father = self.db.get_person_from_handle(fn[6].father_handle)
-                        self.doc.start_paragraph("PLC-PlaceDetails")
+                if fn[6].mother_handle:
+                    mother = self.db.get_person_from_handle(fn[6].mother_handle)
+                    self.doc.start_paragraph("PLC-PlaceDetails")					
         #given Name
-                        self.doc.start_bold()
-                        mark = ReportUtils.get_person_mark(self.db, father)
-                        text = father.get_primary_name().get_first_name()
-                        self.doc.write_text(text, mark)
-                        self.doc.write_text(" %s" % father.get_primary_name().get_surname())
-                        
-                        self.doc.end_bold()
-                        self.doc.write_text(" [%s] " % father.get_gramps_id())
+                    self.doc.write_text("und ")
+                    self.doc.start_bold()
+                
+                    mark = ReportUtils.get_person_mark(self.db, mother)
+                    text = mother.get_primary_name().get_surname()
+                    self.doc.write_text(text, mark)
+                
+                    self.doc.end_bold()
+                    self.doc.write_text(" %s " % mother.get_primary_name().get_first_name())
+                    self.doc.write_text("[%s] " % mother.get_gramps_id())
         #ggf familyID
-                        for fam in father.get_family_handle_list():
-                            if self.db.get_family_from_handle(fam).gramps_id == fn[6].gramps_id:
-                                pass
-                            else:
-                                self.doc.write_text(" [%s]" % self.db.get_family_from_handle(fam).gramps_id)
-                                if self.db.get_family_from_handle(fam).gramps_id in fam_index_keys:
-                                    self.doc.start_bold()
-                                    self.doc.write_text(" <%s>" % fam_index[self.db.get_family_from_handle(fam).gramps_id])
-                                    self.doc.end_bold()
-                        self.__add_grampsID_to_index(person_index, father)
-            #birth date
-                        birth_ref = father.get_birth_ref()
-                        if birth_ref:
-                            self.doc.write_text(" *")
-                            self.doc.write_text(self.__format_date_place(birth_ref))
-            #bapt date
-                        for eventref in father.event_ref_list:
-                            if eventref.role == EventRoleType.PRIMARY:
-                                if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BAPTISM:
-                                    self.doc.write_text(" %s " % u'\u2053')
-                                    self.doc.write_text(self.__format_date_place(eventref))
-            #death date
-                        death_ref = father.get_death_ref()
-                        if death_ref:
-                            self.doc.write_text(" † ")
-                            self.doc.write_text(self.__format_date_place(death_ref))
-            #burr date
-                        for eventref in father.event_ref_list:
-                            if eventref.role == EventRoleType.PRIMARY:
-                                if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BURIAL:
-                                    self.doc.write_text("%s " % u'\u26B0')
-                                    self.doc.write_text(self.__format_date_place(eventref))
-                        self.doc.end_paragraph()
-        # motherdetails
-    #                print(fn[6].gramps_id,fn[6])
-                    print('            handle', fn[6].mother_handle)
+                    for fam in mother.get_family_handle_list():
+                        if self.db.get_family_from_handle(fam).gramps_id == fn[6].gramps_id:
+                            pass
+                        else:
+                            self.doc.write_text(" [%s]" % self.db.get_family_from_handle(fam).gramps_id)
+                            if self.db.get_family_from_handle(fam).gramps_id in fam_index_keys:
+                                self.doc.start_bold()
+                                self.doc.write_text(" <%s>" % fam_index[self.db.get_family_from_handle(fam).gramps_id])
+                                self.doc.end_bold()
+                    self.__add_grampsID_to_index(person_index, mother)              
 
-                    if fn[6].mother_handle:
-                        mother = self.db.get_person_from_handle(fn[6].mother_handle)
-                        self.doc.start_paragraph("PLC-PlaceDetails")					
-            #given Name
-                        self.doc.write_text("und ")
-                        self.doc.start_bold()
-                  
-                        mark = ReportUtils.get_person_mark(self.db, mother)
-                        text = mother.get_primary_name().get_surname()
+        #birth date
+                    birth_ref = mother.get_birth_ref()
+                    if birth_ref:
+                        self.doc.write_text(" *")
+                        self.doc.write_text(self.__format_date_place(birth_ref))
+        #bapt date
+                    for eventref in mother.event_ref_list:
+                        if eventref.role == EventRoleType.PRIMARY:
+                            if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BAPTISM:
+                                self.doc.write_text(" %s " % u'\u2053')
+                                self.doc.write_text(self.__format_date_place(eventref))
+        #death date
+                    death_ref = mother.get_death_ref()
+                    if death_ref:
+                        self.doc.write_text(" † ")
+                        self.doc.write_text(self.__format_date_place(death_ref))
+        #burr date
+                    for eventref in mother.event_ref_list:
+                        if eventref.role == EventRoleType.PRIMARY:
+                            if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BURIAL:
+                                self.doc.write_text("%s " % u'\u26B0')
+                                self.doc.write_text(self.__format_date_place(eventref))
+                    self.doc.end_paragraph()
+    # Children
+                fc = 0
+                for ch in fn[6].get_child_ref_list():
+                    self.doc.start_paragraph("PLC-PlaceDetailsChildren")
+                    fc += 1
+                    child = self.db.get_person_from_handle(ch.ref)
+                    if child:
+        #lnr
+                        self.doc.write_text("     %s " % fc)
+        #given Name
+                        mark = ReportUtils.get_person_mark(self.db, child)
+                        text = child.get_primary_name().get_first_name()
                         self.doc.write_text(text, mark)
-                  
-                        self.doc.end_bold()
-                        self.doc.write_text(" %s " % mother.get_primary_name().get_first_name())
-                        self.doc.write_text("[%s] " % mother.get_gramps_id())
-            #ggf familyID
-                        for fam in mother.get_family_handle_list():
+                        self.doc.write_text(" [%s] " % child.get_gramps_id())
+        #ggf familyID
+                        for fam in child.get_family_handle_list():
                             if self.db.get_family_from_handle(fam).gramps_id == fn[6].gramps_id:
                                 pass
                             else:
@@ -392,96 +431,47 @@ class PlaceFamilyReport(Report):
                                     self.doc.start_bold()
                                     self.doc.write_text(" <%s>" % fam_index[self.db.get_family_from_handle(fam).gramps_id])
                                     self.doc.end_bold()
-                        self.__add_grampsID_to_index(person_index, mother)              
-
-            #birth date
-                        birth_ref = mother.get_birth_ref()
+                        self.__add_grampsID_to_index(person_index, child)            
+        #birth date
+                        birth_ref = child.get_birth_ref()
                         if birth_ref:
-                            self.doc.write_text(" *")
+                            self.doc.write_text(" * ")                                
                             self.doc.write_text(self.__format_date_place(birth_ref))
-            #bapt date
-                        for eventref in mother.event_ref_list:
+        #bapt date
+                        for eventref in child.event_ref_list:
                             if eventref.role == EventRoleType.PRIMARY:
                                 if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BAPTISM:
                                     self.doc.write_text(" %s " % u'\u2053')
                                     self.doc.write_text(self.__format_date_place(eventref))
-            #death date
-                        death_ref = mother.get_death_ref()
+        
+                                    if self.showgodparents:
+                                        Patenlist = []
+                                        Patenlist = pedic[eventref.ref]
+
+        #death date
+                        death_ref = child.get_death_ref()
                         if death_ref:
                             self.doc.write_text(" † ")
                             self.doc.write_text(self.__format_date_place(death_ref))
-            #burr date
-                        for eventref in mother.event_ref_list:
+        #burr date
+                        for eventref in child.event_ref_list:
                             if eventref.role == EventRoleType.PRIMARY:
                                 if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BURIAL:
                                     self.doc.write_text("%s " % u'\u26B0')
                                     self.doc.write_text(self.__format_date_place(eventref))
                         self.doc.end_paragraph()
-        # Children
-                    fc = 0
-                    for ch in fn[6].get_child_ref_list():
-                        self.doc.start_paragraph("PLC-PlaceDetailsChildren")
-                        fc += 1
-                        child = self.db.get_person_from_handle(ch.ref)
-                        if child:
-            #lnr
-                            self.doc.write_text("     %s " % fc)
-            #given Name
-                            mark = ReportUtils.get_person_mark(self.db, child)
-                            text = child.get_primary_name().get_first_name()
-                            self.doc.write_text(text, mark)
-                            self.doc.write_text(" [%s] " % child.get_gramps_id())
-            #ggf familyID
-                            for fam in child.get_family_handle_list():
-                                if self.db.get_family_from_handle(fam).gramps_id == fn[6].gramps_id:
-                                    pass
-                                else:
-                                    self.doc.write_text(" [%s]" % self.db.get_family_from_handle(fam).gramps_id)
-                                    if self.db.get_family_from_handle(fam).gramps_id in fam_index_keys:
-                                        self.doc.start_bold()
-                                        self.doc.write_text(" <%s>" % fam_index[self.db.get_family_from_handle(fam).gramps_id])
-                                        self.doc.end_bold()
-                            self.__add_grampsID_to_index(person_index, child)            
-            #birth date
-                            birth_ref = child.get_birth_ref()
-                            if birth_ref:
-                                self.doc.write_text(" * ")                                
-                                self.doc.write_text(self.__format_date_place(birth_ref))
-            #bapt date
-                            for eventref in child.event_ref_list:
-                                if eventref.role == EventRoleType.PRIMARY:
-                                    if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BAPTISM:
-                                        self.doc.write_text(" %s " % u'\u2053')
-                                        self.doc.write_text(self.__format_date_place(eventref))
-         
-                                        if self.showgodparents:
-                                            Patenlist = []
-                                            Patenlist = pedic[eventref.ref]
 
-            #death date
-                            death_ref = child.get_death_ref()
-                            if death_ref:
-                                self.doc.write_text(" † ")
-                                self.doc.write_text(self.__format_date_place(death_ref))
-            #burr date
-                            for eventref in child.event_ref_list:
-                                if eventref.role == EventRoleType.PRIMARY:
-                                    if self.db.get_event_from_handle(eventref.ref).get_type() == EventType.BURIAL:
-                                        self.doc.write_text("%s " % u'\u26B0')
-                                        self.doc.write_text(self.__format_date_place(eventref))
-                            self.doc.end_paragraph()
-
-                            if self.showgodparents:
-                                if len(Patenlist) > 0:
-                                    self.doc.start_paragraph("PLC-Godparents")
-                                    self.doc.write_text(" Paten: ")
-                                    for i, (pa_a,pa_b) in enumerate(Patenlist):
-                                        self.doc.write_text(" (%s) " % str(i+1))
-                                        pate = self.db.get_person_from_handle(pa_b) 
-                                        mark = ReportUtils.get_person_mark(self.db, pate)
-                                        self.doc.write_text(pate.get_primary_name().get_first_name() + " " + pate.get_primary_name().get_surname() ,mark)
-                                    self.doc.end_paragraph()
-                                Patenlist =[]
+                        if self.showgodparents:
+                            if len(Patenlist) > 0:
+                                self.doc.start_paragraph("PLC-Godparents")
+                                self.doc.write_text(" Paten: ")
+                                for i, (pa_a,pa_b) in enumerate(Patenlist):
+                                    self.doc.write_text(" (%s) " % str(i+1))
+                                    pate = self.db.get_person_from_handle(pa_b) 
+                                    mark = ReportUtils.get_person_mark(self.db, pate)
+                                    self.doc.write_text(pate.get_primary_name().get_first_name() + " " + pate.get_primary_name().get_surname() ,mark)
+                                self.doc.end_paragraph()
+                            Patenlist =[]
 
         person_index = list(set(person_index))
         for (indname, pi) in sorted(person_index):
